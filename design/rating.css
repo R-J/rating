@@ -1,0 +1,9 @@
+.RatingUp:hover, .RatingDown:hover {
+  font-weight:bold;
+  cursor:pointer;
+}
+
+.RatingUp:active, .RatingDown:active {
+  font-weight:lighter;
+  cursor:pointer;
+}
