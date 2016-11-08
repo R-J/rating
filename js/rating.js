@@ -27,7 +27,7 @@ $( document ).ready(function() {
             {
                 id: id,
                 type: type,
-                rating: rating,
+                rate: rating,
                 tk: gdn.definition( "TransientKey" )
             }
         )
