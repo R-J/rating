@@ -20,6 +20,10 @@ $PluginInfo['rating'] = [
     'License' => 'MIT'
 ];
 
+
+// TODO: disallow rating own posts
+// TODO: change style
+// TODO: make links point to signin for guests
 class RatingPlugin extends Gdn_Plugin {
     /**
      * Init db changes.
@@ -61,16 +65,11 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_render_before($sender) {
-        // Do permission checks only once.
-        // Check for viewing permissions
-        if (!Gdn::session()->checkPermission('Plugins.Rating.View')) {
-            return;
-        }
-        $sender->RatingVisible = true;
-        // Include style.
+        // Include style & script.
         $sender->addCssFile('rating.css','plugins/rating');
+        $sender->addJsFile('rating.js','plugins/rating');
 
-        // Check for adding permissions.
+        // Check for adding permissions only once.
         if (
             Gdn::session()->checkPermission(
                 [
@@ -80,11 +79,13 @@ class RatingPlugin extends Gdn_Plugin {
                 false
             )
         ) {
-            // Include js script only if needed.
-            $sender->addJsFile('rating.js','plugins/rating');
-            // Add css class to allow styling based on users permissions.
-            $sender->CssClass .= ' RatingAllowed';
+            // Reflect permission in css class.
+            $cssClass = ' RatingAllowed';
+            $sender->addDefinition('RatingPermission', true);
+        } else {
+            $cssClass = ' RatingDisallowed';
         }
+        $sender->CssClass .= $cssClass;
     }
 
     /**
@@ -96,10 +97,6 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_beforeDiscussionContent_handler($sender, $args) {
-        if (!$sender->RatingVisible) {
-            $return;
-        }
-
         ?>
         <div class="RatingContainer RatingDiscussion">
             <a class="RatingUp" DiscussionID="<?= $args['Discussion']->DiscussionID ?>"><?= t('&#x25B2;') ?></a>
@@ -119,17 +116,38 @@ class RatingPlugin extends Gdn_Plugin {
         echo '</div>';
     }
 
+    public function base_beforeDiscussionDisplay_handler($sender, $args) {
+        ?>
+        <div class="RatingContainer RatingDiscussion">
+            <a class="RatingUp" DiscussionID="<?= $args['Discussion']->DiscussionID ?>"><?= t('&#x25B2;') ?></a>
+            <span class="Rating"><?= intval($args['Discussion']->Score) ?></span>
+            <a class="RatingDown" DiscussionID="<?= $args['Discussion']->DiscussionID ?>"><?= t('&#x25BC;') ?></a>
+        </div>
+        <?php
+    }
+
+    public function base_beforeCommentDisplay_handler($sender, $args) {
+        ?>
+        <div class="RatingContainer RatingComment">
+            <a class="RatingUp" CommentID="<?= $args['Comment']->CommentID ?>"><?= t('&#x25B2;') ?></a>
+            <span class="Rating"><?= intval($args['Comment']->Score) ?></span>
+            <a class="RatingDown" CommentID="<?= $args['Comment']->CommentID ?>"><?= t('&#x25BC;') ?></a>
+        </div>
+        <?php
+    }
+
     /**
      * API endpoint for changing a discussion/comments rating.
      *
      * Only called from js files. Needs parameters
-     * type: "Discussion" (default) or "Comment"
+     * type: "discussion" (default) or "comment"
      * id:   The DiscussionID or CommentID
      * rate: "up" (default) or "down"
      * "Plugins.Rating.Add" or "Plugins.Rating.Manage" permissions needed.
      * @param PluginController $sender Instance of the calling class.
-     * @param  [type] $args   [description]
-     * @return [type]         [description]
+     * @param mixed            $args   Event arguments.
+     *
+     * @return bool Whether Score has been updated.
      */
     public function pluginController_rating_create($sender, $args) {
         $sender->permission(
@@ -149,7 +167,7 @@ class RatingPlugin extends Gdn_Plugin {
             throw new InvalidArgumentException('PostID invalid.');
         }
         // Get post type
-        if (strtolower(val('type', $getParams, 'Discussion')) == 'comment') {
+        if (val('type', $getParams, 'Discussion') == 'comment') {
             $postType = 'Comment';
         } else {
             $postType = 'Discussion';
@@ -197,7 +215,7 @@ class RatingPlugin extends Gdn_Plugin {
      */
     public function commentModel_beforeGet_handler($sender) {
         if (c('Vanilla.Discussions.SortField', '') == 'Score') {
-            $sender->orderBy('Score', 'desc');
+            $sender->orderBy('Score desc');
         }
     }
 
@@ -210,7 +228,7 @@ class RatingPlugin extends Gdn_Plugin {
      */
     public function commentModel_beforeGetNew_handler($sender) {
         if (c('Vanilla.Discussions.SortField', '') == 'Score') {
-            $sender->orderBy('Score', 'desc');
+            $sender->orderBy('Score desc');
         }
     }
 
@@ -223,7 +241,7 @@ class RatingPlugin extends Gdn_Plugin {
      */
     public function commentModel_beforeGetOffset_handler($sender) {
         if (c('Vanilla.Discussions.SortField', '') == 'Score') {
-            $sender->orderBy('Score', 'desc');
+            $sender->orderBy('Score desc');
         }
     }
 }

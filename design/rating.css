@@ -1,3 +1,7 @@
+.RatingDisallowed > .RatingUp, .RatingDisallowed > .RatingDown {
+    display:none;
+}
+
 .RatingUp:hover, .RatingDown:hover {
   font-weight:bold;
   cursor:pointer;
