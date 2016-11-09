@@ -2,7 +2,7 @@
 
 $PluginInfo['rating'] = [
     'Name' => 'Rating',
-    'Description' => 'Allows users to up- or down-vote discussions and comments.<div class="Warning">This plugin is not compatible with other plugins that use the Score column and you will loose information just by activating it!</div>',
+    'Description' => 'Allows users to up- or down-vote discussions and comments. <div class="Warning">This plugin is not compatible with other plugins that use the Score column and you will loose information just by activating it!</div>',
     'Version' => '0.1',
     'RequiredApplications' => ['Vanilla' => '2.2'],
     'RequiredTheme' => false,
@@ -31,9 +31,7 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function setup() {
-        // TODO: check for yaga and return
-        // TODO: put this into settings
-        saveToConfig('Vanilla.Discussions.SortField', 'Score');
+        // TODO: check for yaga, voting and return
         $this->structure();
     }
 
@@ -55,6 +53,61 @@ class RatingPlugin extends Gdn_Plugin {
     }
 
     /**
+     * Allows enabling plugin and changing sort order.
+     *
+     * @param SettingsController $sender Instance of the calling class.
+     *
+     * @return void.
+     */
+    public function settingsController_rating_create($sender) {
+        $sender->permission('Garden.Settings.Manage');
+        $sender->setData('Title', t('Rating Settings'));
+        $sender->addSideMenu('dashboard/settings/plugins');
+
+        $validation = new Gdn_Validation();
+        $configurationModel = new Gdn_ConfigurationModel($validation);
+        $configurationModel->setField(
+            [
+                'Vanilla.Discussions.SortDirection',
+                'Vanilla.Discussions.SortField',
+                'rating.Comments.SortField',
+                'Plugins.rating.Enabled'
+            ]
+        );
+        $sender->Form = new Gdn_Form();
+        $sender->Form->setModel($configurationModel);
+
+        $sender->setData(
+            'SortDirection',
+            ['desc' => 'Descending', 'asc' => 'Ascending']
+        );
+        $sender->setData(
+            'DiscussionSortField',
+            [
+                'Score' => 'Score',
+                'DateInserted' => 'Date Inserted',
+                'DateLastComment' => 'Date Last Comment'
+            ]
+        );
+        $sender->setData(
+            'CommentSortField',
+            [
+                'Score' => 'Score',
+                'DateInserted' => 'Date Inserted'
+            ]
+        );
+
+        if ($sender->Form->authenticatedPostBack() === false) {
+            $sender->Form->setData($configurationModel->Data);
+        } else {
+            if ($sender->Form->save() !== false) {
+                $sender->informMessage(t('Your settings have been saved.'));
+            }
+        }
+        $sender->render($this->getView('settings.php'));
+    }
+
+    /**
      * Optionally add CSS & JS files. Do plugins permission checks.
      *
      * Permission is checked once per controller here so that it doesn't need
@@ -65,9 +118,12 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_render_before($sender) {
+        if ($this->isEnabled() != true) {
+            return;
+        }
         // Include style & script.
-        $sender->addCssFile('rating.css','plugins/rating');
-        $sender->addJsFile('rating.js','plugins/rating');
+        $sender->addCssFile('rating.css', 'plugins/rating');
+        $sender->addJsFile('rating.js', 'plugins/rating');
 
         // Check for adding permissions only once.
         if (
@@ -97,6 +153,9 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_beforeDiscussionContent_handler($sender, $args) {
+        if ($this->isEnabled() != true) {
+            return;
+        }
         ?>
         <div class="RatingContainer RatingDiscussion">
             <a class="RatingUp" DiscussionID="<?= $args['Discussion']->DiscussionID ?>"><?= t('&#x25B2;') ?></a>
@@ -113,10 +172,24 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_afterDiscussionContent_handler() {
+        if ($this->isEnabled() != true) {
+            return;
+        }
         echo '</div>';
     }
 
+    /**
+     * Insert rating elements.
+     *
+     * @param GardenController $sender Instance of the calling class.
+     * @param mixed            $args   Event arguments.
+     *
+     * @return void.
+     */
     public function base_beforeDiscussionDisplay_handler($sender, $args) {
+        if ($this->isEnabled() != true) {
+            return;
+        }
         ?>
         <div class="RatingContainer RatingDiscussion">
             <a class="RatingUp" DiscussionID="<?= $args['Discussion']->DiscussionID ?>"><?= t('&#x25B2;') ?></a>
@@ -126,7 +199,18 @@ class RatingPlugin extends Gdn_Plugin {
         <?php
     }
 
+    /**
+     * Insert rating elements.
+     *
+     * @param GardenController $sender Instance of the calling class.
+     * @param mixed            $args   Event arguments.
+     *
+     * @return void.
+     */
     public function base_beforeCommentDisplay_handler($sender, $args) {
+        if ($this->isEnabled() != true) {
+            return;
+        }
         ?>
         <div class="RatingContainer RatingComment">
             <a class="RatingUp" CommentID="<?= $args['Comment']->CommentID ?>"><?= t('&#x25B2;') ?></a>
@@ -150,6 +234,9 @@ class RatingPlugin extends Gdn_Plugin {
      * @return bool Whether Score has been updated.
      */
     public function pluginController_rating_create($sender, $args) {
+        if ($this->isEnabled() != true) {
+            return;
+        }
         $sender->permission(
             [
                 'Plugins.Rating.Add', 'Plugins.Rating.Manage'
@@ -209,39 +296,22 @@ class RatingPlugin extends Gdn_Plugin {
     /**
      * Change comments sort order.
      *
+     * There is no config setting for this, so that must be set dynamically.
+     *
      * @param CommentModel $sender Instance of the calling class.
      *
      * @return void.
      */
-    public function commentModel_beforeGet_handler($sender) {
-        if (c('Vanilla.Discussions.SortField', '') == 'Score') {
-            $sender->orderBy('Score desc');
+    public function commentModel_afterConstruct_handler($sender) {
+        if ($this->isEnabled() != true) {
+            return;
         }
-    }
-
-    /**
-     * Change comments sort order.
-     *
-     * @param CommentModel $sender Instance of the calling class.
-     *
-     * @return void.
-     */
-    public function commentModel_beforeGetNew_handler($sender) {
         if (c('Vanilla.Discussions.SortField', '') == 'Score') {
-            $sender->orderBy('Score desc');
-        }
-    }
-
-    /**
-     * Change comments sort order.
-     *
-     * @param CommentModel $sender Instance of the calling class.
-     *
-     * @return void.
-     */
-    public function commentModel_beforeGetOffset_handler($sender) {
-        if (c('Vanilla.Discussions.SortField', '') == 'Score') {
-            $sender->orderBy('Score desc');
+            $sender->orderBy(
+                c('rating.Comments.SortField', 'Score').
+                ' '.
+                c('Vanilla.Discussions.SortDirection', 'desc')
+            );
         }
     }
 }
