@@ -12,7 +12,6 @@ $PluginInfo['rating'] = [
     'HasLocale' => false,
     'RegisterPermissions' => [
         'Plugins.Rating.Add',
-        'Plugins.Rating.View',
         'Plugins.Rating.Manage'
     ],
     'Author' => 'Robin Jurinka',
@@ -21,17 +20,32 @@ $PluginInfo['rating'] = [
 ];
 
 
-// TODO: disallow rating own posts
 // TODO: change style
 // TODO: make links point to signin for guests
 class RatingPlugin extends Gdn_Plugin {
+    /** @var boolean Whether the plugin is enabled. */
+    protected $enabled = false;
+
+    protected $template = '';
+
+    public function __construct() {
+        parent::__construct();
+        // Do the isEnabled() check only once.
+        $this->enabled = $this->isEnabled();
+        $this->template = '
+            <div class="RatingContainer Rating%1$s">
+                <a class="RatingUp" %1$sID="%2$u">'.t('&#x25B2;').'</a>
+                <span class="Rating" data-rating="%2$u">%2$u</span>
+                <a class="RatingDown" %1$sID="%2$u">'.t('&#x25BC;').'</a>
+            </div>
+        ';
+    }
     /**
      * Init db changes.
      *
      * @return void.
      */
     public function setup() {
-        // TODO: check for yaga, voting and return
         $this->structure();
     }
 
@@ -76,24 +90,25 @@ class RatingPlugin extends Gdn_Plugin {
         );
         $sender->Form = new Gdn_Form();
         $sender->Form->setModel($configurationModel);
-
+        // Choices for sort directions.
         $sender->setData(
             'SortDirection',
             ['desc' => 'Descending', 'asc' => 'Ascending']
         );
+        // Choices for sort fields
         $sender->setData(
             'DiscussionSortField',
             [
                 'Score' => 'Score',
-                'DateInserted' => 'Date Inserted',
-                'DateLastComment' => 'Date Last Comment'
+                'DateInserted' => 'Date Created',
+                'DateLastComment' => 'Date Last Active'
             ]
         );
         $sender->setData(
             'CommentSortField',
             [
                 'Score' => 'Score',
-                'DateInserted' => 'Date Inserted'
+                'DateInserted' => 'Date Created'
             ]
         );
 
@@ -118,7 +133,7 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_render_before($sender) {
-        if ($this->isEnabled() != true) {
+        if (!$this->enabled) {
             return;
         }
         // Include style & script.
@@ -153,13 +168,13 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_beforeDiscussionContent_handler($sender, $args) {
-        if ($this->isEnabled() != true) {
+        if (!$this->enabled) {
             return;
         }
         ?>
         <div class="RatingContainer RatingDiscussion">
             <a class="RatingUp" DiscussionID="<?= $args['Discussion']->DiscussionID ?>"><?= t('&#x25B2;') ?></a>
-            <span class="Rating"><?= intval($args['Discussion']->Score) ?></span>
+            <span class="Rating" data-rating="<?= intval($args['Discussion']->Score) ?>"><?= intval($args['Discussion']->Score) ?></span>
             <a class="RatingDown" DiscussionID="<?= $args['Discussion']->DiscussionID ?>"><?= t('&#x25BC;') ?></a>
         </div>
         <div class="DiscussionContent">
@@ -172,7 +187,7 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_afterDiscussionContent_handler() {
-        if ($this->isEnabled() != true) {
+        if (!$this->enabled) {
             return;
         }
         echo '</div>';
@@ -187,13 +202,14 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_beforeDiscussionDisplay_handler($sender, $args) {
-        if ($this->isEnabled() != true) {
+        if (!$this->enabled) {
             return;
         }
         ?>
         <div class="RatingContainer RatingDiscussion">
             <a class="RatingUp" DiscussionID="<?= $args['Discussion']->DiscussionID ?>"><?= t('&#x25B2;') ?></a>
-            <span class="Rating"><?= intval($args['Discussion']->Score) ?></span>
+            <span class="Rating" data-rating="<?= intval($args['Discussion']->Score) ?>"><?= intval($args['Discussion']->Score) ?></span>
+
             <a class="RatingDown" DiscussionID="<?= $args['Discussion']->DiscussionID ?>"><?= t('&#x25BC;') ?></a>
         </div>
         <?php
@@ -208,20 +224,20 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_beforeCommentDisplay_handler($sender, $args) {
-        if ($this->isEnabled() != true) {
+        if (!$this->enabled) {
             return;
         }
         ?>
         <div class="RatingContainer RatingComment">
             <a class="RatingUp" CommentID="<?= $args['Comment']->CommentID ?>"><?= t('&#x25B2;') ?></a>
-            <span class="Rating"><?= intval($args['Comment']->Score) ?></span>
+            <span class="Rating" data-rating="<?= intval($args['Comment']->Score) ?>"><?= intval($args['Comment']->Score) ?></span>
             <a class="RatingDown" CommentID="<?= $args['Comment']->CommentID ?>"><?= t('&#x25BC;') ?></a>
         </div>
         <?php
     }
 
     /**
-     * API endpoint for changing a discussion/comments rating.
+     * Endpoint for changing a discussion/comments rating.
      *
      * Only called from js files. Needs parameters
      * type: "discussion" (default) or "comment"
@@ -234,8 +250,8 @@ class RatingPlugin extends Gdn_Plugin {
      * @return bool Whether Score has been updated.
      */
     public function pluginController_rating_create($sender, $args) {
-        if ($this->isEnabled() != true) {
-            return;
+        if (!$this->enabled) {
+            return false;
         }
         $sender->permission(
             [
@@ -261,6 +277,14 @@ class RatingPlugin extends Gdn_Plugin {
         }
         $modelName = $postType.'Model';
         $postModel = new $modelName();
+
+        // Prevent users from voting on their own posts.
+        if (!Gdn::session()->checkPermission('Plugins.Rating.Manage')) {
+            $post = $postModel->getID($postID);
+            if ($post->InsertUserID == Gdn::session()->UserID) {
+                return false;
+            }
+        }
 
         // Determine rating.
         if (val('rate', $getParams, 'up') == 'down') {
@@ -303,7 +327,7 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function commentModel_afterConstruct_handler($sender) {
-        if ($this->isEnabled() != true) {
+        if (!$this->enabled) {
             return;
         }
         if (c('Vanilla.Discussions.SortField', '') == 'Score') {

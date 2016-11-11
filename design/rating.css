@@ -11,3 +11,17 @@
   font-weight:lighter;
   cursor:pointer;
 }
+
+.ItemDiscussion {
+    display: table;
+}
+.RatingContainer  {
+    display: table-cell;
+    line-height: 1em;
+    padding: 0 1em 0 0;
+    text-align: center;
+}
+.DiscussionContent {
+    display:table-cell;
+    width:100%;
+}
