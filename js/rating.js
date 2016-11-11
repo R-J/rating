@@ -14,15 +14,6 @@ $(document).ready(function() {
 
   // Make ajax call for changing the score and update current score.
   function rate(el, rating) {
-    // Get id and determine type based on element attribute.
-    var id = $(el).attr("DiscussionID");
-    if (id) {
-      var type = 'discussion';
-    } else {
-      id = $(el).attr("CommentID");
-      var type = 'comment';
-    }
-
     // Save old score for later use and set "loading" animation.
     var elScore = el.siblings(".Rating");
     var oldScore = elScore.text();
@@ -38,8 +29,8 @@ $(document).ready(function() {
     $.get(
       gdn.url("/plugin/rating"),
       {
-        id: id,
-        type: type,
+        id: $(el).parent().attr('data-postid'),
+        type: $(el).parent().attr('data-posttype'),
         rate: rating,
         tk: gdn.definition("TransientKey")
       }

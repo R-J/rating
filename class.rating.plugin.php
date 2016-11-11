@@ -41,10 +41,10 @@ class RatingPlugin extends Gdn_Plugin {
         $this->enabled = $this->isEnabled();
 
         $this->template = '
-            <div class="RatingContainer Rating%1$s">
-                <a class="RatingUp" %1$sID="%2$u">'.t('&#x25B2;').'</a>
+            <div class="RatingContainer Rating%1$s" data-posttype="%1$s" data-postid="%2$u">
+                <a class="RatingUp">'.t('&#x25B2;').'</a>
                 <span class="Rating" data-rating="%3$d">%3$d</span>
-                <a class="RatingDown" %1$sID="%2$u">'.t('&#x25BC;').'</a>
+                <a class="RatingDown">'.t('&#x25BC;').'</a>
             </div>
         ';
     }
@@ -93,6 +93,7 @@ class RatingPlugin extends Gdn_Plugin {
                 'Vanilla.Discussions.SortDirection',
                 'Vanilla.Discussions.SortField',
                 'rating.Comments.SortField',
+                'rating.RatingStep',
                 'Plugins.rating.Enabled'
             ]
         );
@@ -262,7 +263,7 @@ class RatingPlugin extends Gdn_Plugin {
             throw new InvalidArgumentException('PostID invalid.');
         }
         // Get post type
-        if (val('type', $getParams, 'Discussion') == 'comment') {
+        if (val('type', $getParams, 'Discussion') == 'Comment') {
             $postType = 'Comment';
         } else {
             $postType = 'Discussion';
