@@ -23,38 +23,25 @@
     font-size: 0.8em;
 }
 
-/* block for discussion /comment */
-.RatingComment {
+
+/* rating containers */
+.RatingContainer {
     display: inline-block;
     line-height: 1em;
     text-align: center;
     width: 1.5em;
     vertical-align: top;
 }
-.Item-Header.CommentHeader {
+.RatingDiscussion {
+    padding: 8px;
+}
+.Discussion .ItemDiscussion, .Item-Header.CommentHeader {
     display: inline-block;
     padding-left: 1em;
+}
+.ItemContent.Discussion {
+    display: inline-block;
 }
 .Comment .Item-BodyWrap {
     padding-left: 2.5em;
-}
-
-/* block for discussion / discussion */
-.RatingDiscussion {
-    display: inline-block;
-    line-height: 1em;
-    text-align: center;
-    width: 1.5em;
-    padding: 8px;
-    vertical-align: top;
-}
-.Discussion .ItemDiscussion {
-    display: inline-block;
-    padding-left: 1em;
-}
-
-/* block for discussions */
-
-.ItemContent.Discussion {
-    display: inline-block;
 }

@@ -169,7 +169,7 @@ class RatingPlugin extends Gdn_Plugin {
     }
 
     /**
-     * Insert markup into discussions lists.
+     * Insert rating markup into discussions lists.
      *
      * @param GardenController $sender Instance of the calling class.
      * @param mixed            $args   Event arguments.
@@ -186,23 +186,10 @@ class RatingPlugin extends Gdn_Plugin {
             $args['Discussion']->DiscussionID,
             $args['Discussion']->Score
         );
-        // echo '<div class="DiscussionContent">';
     }
 
     /**
-     * Close <div> tag from beforeDiscussionContent.
-     *
-     * @return void.
-     */
-    public function base_afterDiscussionContent_handler() {
-        if (!$this->enabled || c('Vanilla.Discussions.Layout') == 'table') {
-            return;
-        }
-        // echo '</div>';
-    }
-
-    /**
-     * Insert rating elements.
+     * Insert rating markup into discussion.
      *
      * @param GardenController $sender Instance of the calling class.
      * @param mixed            $args   Event arguments.
@@ -219,28 +206,17 @@ class RatingPlugin extends Gdn_Plugin {
             $args['Discussion']->DiscussionID,
             $args['Discussion']->Score
         );
-        // echo '<div class="DiscussionContent">';
-    }
-
-    public function base_AfterDiscussion_handler($sender, $args) {
-        if (!$this->enabled) {
-            return;
-        }
-        // echo '</div>';
-
     }
 
     /**
-     * Insert rating elements.
+     * Insert rating markup into comment.
      *
      * @param GardenController $sender Instance of the calling class.
      * @param mixed            $args   Event arguments.
      *
      * @return void.
      */
-//    public function base_beforeCommentDisplay_handler($sender, $args) {
     public function base_beforeCommentMeta_handler($sender, $args) {
-        
         if (!$this->enabled) {
             return;
         }
