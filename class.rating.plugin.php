@@ -2,7 +2,7 @@
 
 $PluginInfo['rating'] = [
     'Name' => 'Rating',
-    'Description' => 'Allows users to up- or down-vote discussions and comments. <div class="Warning">This plugin is not compatible with other plugins that use the Score column and you will loose information just by activating it!</div>',
+    'Description' => 'Allows users to up- or down-vote discussions and comments. <div class="Warning">Don\'t use this plugin together with Yaga!</div>',
     'Version' => '0.1',
     'RequiredApplications' => ['Vanilla' => '2.2'],
     'RequiredTheme' => false,
@@ -30,8 +30,16 @@ class RatingPlugin extends Gdn_Plugin {
 
     public function __construct() {
         parent::__construct();
+
+        // It will not work with table layout
+        if (c('Vanilla.Discussions.Layout') == 'table') {
+            $this->enabled = false;
+            return;
+        }
+
         // Do the isEnabled() check only once.
         $this->enabled = $this->isEnabled();
+
         $this->template = '
             <div class="RatingContainer Rating%1$s">
                 <a class="RatingUp" %1$sID="%2$u">'.t('&#x25B2;').'</a>
@@ -168,7 +176,7 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_beforeDiscussionContent_handler($sender, $args) {
-        if (!$this->enabled) {
+        if (!$this->enabled || c('Vanilla.Discussions.Layout') == 'table') {
             return;
         }
         printf(
@@ -186,7 +194,7 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_afterDiscussionContent_handler() {
-        if (!$this->enabled) {
+        if (!$this->enabled || c('Vanilla.Discussions.Layout') == 'table') {
             return;
         }
         echo '</div>';
