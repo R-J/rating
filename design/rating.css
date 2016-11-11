@@ -1,7 +1,9 @@
+/* rating disallowed */
 .RatingDisallowed > .RatingUp, .RatingDisallowed > .RatingDown {
     display:none;
 }
 
+/* show hover and click animations */
 .RatingUp:hover, .RatingDown:hover {
   font-weight:bold;
   cursor:pointer;
@@ -12,16 +14,47 @@
   cursor:pointer;
 }
 
-.ItemDiscussion {
-    display: table;
+/* ui elements */
+.RatingUp, .RatingDown {
+  font-size:1.5em;
 }
-.RatingContainer  {
-    display: table-cell;
+
+.Rating {
+    font-size: 0.8em;
+}
+
+/* block for discussion /comment */
+.RatingComment {
+    display: inline-block;
     line-height: 1em;
-    padding: 0 1em 0 0;
     text-align: center;
+    width: 1.5em;
+    vertical-align: top;
 }
-.DiscussionContent {
-    display:table-cell;
-    width:100%;
+.Item-Header.CommentHeader {
+    display: inline-block;
+    padding-left: 1em;
+}
+.Comment .Item-BodyWrap {
+    padding-left: 2.5em;
+}
+
+/* block for discussion / discussion */
+.RatingDiscussion {
+    display: inline-block;
+    line-height: 1em;
+    text-align: center;
+    width: 1.5em;
+    padding: 8px;
+    vertical-align: top;
+}
+.Discussion .ItemDiscussion {
+    display: inline-block;
+    padding-left: 1em;
+}
+
+/* block for discussions */
+
+.ItemContent.Discussion {
+    display: inline-block;
 }

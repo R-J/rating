@@ -119,6 +119,7 @@ class RatingPlugin extends Gdn_Plugin {
                 'DateInserted' => 'Date Created'
             ]
         );
+        $sender->setData('YagaEnabled', Gdn::applicationManager()->isEnabled('Yaga'));
 
         if ($sender->Form->authenticatedPostBack() === false) {
             $sender->Form->setData($configurationModel->Data);
@@ -185,7 +186,7 @@ class RatingPlugin extends Gdn_Plugin {
             $args['Discussion']->DiscussionID,
             $args['Discussion']->Score
         );
-        echo '<div class="DiscussionContent">';
+        // echo '<div class="DiscussionContent">';
     }
 
     /**
@@ -197,7 +198,7 @@ class RatingPlugin extends Gdn_Plugin {
         if (!$this->enabled || c('Vanilla.Discussions.Layout') == 'table') {
             return;
         }
-        echo '</div>';
+        // echo '</div>';
     }
 
     /**
@@ -218,6 +219,15 @@ class RatingPlugin extends Gdn_Plugin {
             $args['Discussion']->DiscussionID,
             $args['Discussion']->Score
         );
+        // echo '<div class="DiscussionContent">';
+    }
+
+    public function base_AfterDiscussion_handler($sender, $args) {
+        if (!$this->enabled) {
+            return;
+        }
+        // echo '</div>';
+
     }
 
     /**
@@ -228,7 +238,9 @@ class RatingPlugin extends Gdn_Plugin {
      *
      * @return void.
      */
-    public function base_beforeCommentDisplay_handler($sender, $args) {
+//    public function base_beforeCommentDisplay_handler($sender, $args) {
+    public function base_beforeCommentMeta_handler($sender, $args) {
+        
         if (!$this->enabled) {
             return;
         }
