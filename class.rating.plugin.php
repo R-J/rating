@@ -35,7 +35,7 @@ class RatingPlugin extends Gdn_Plugin {
         $this->template = '
             <div class="RatingContainer Rating%1$s">
                 <a class="RatingUp" %1$sID="%2$u">'.t('&#x25B2;').'</a>
-                <span class="Rating" data-rating="%2$u">%2$u</span>
+                <span class="Rating" data-rating="%3$d">%3$d</span>
                 <a class="RatingDown" %1$sID="%2$u">'.t('&#x25BC;').'</a>
             </div>
         ';
@@ -171,14 +171,13 @@ class RatingPlugin extends Gdn_Plugin {
         if (!$this->enabled) {
             return;
         }
-        ?>
-        <div class="RatingContainer RatingDiscussion">
-            <a class="RatingUp" DiscussionID="<?= $args['Discussion']->DiscussionID ?>"><?= t('&#x25B2;') ?></a>
-            <span class="Rating" data-rating="<?= intval($args['Discussion']->Score) ?>"><?= intval($args['Discussion']->Score) ?></span>
-            <a class="RatingDown" DiscussionID="<?= $args['Discussion']->DiscussionID ?>"><?= t('&#x25BC;') ?></a>
-        </div>
-        <div class="DiscussionContent">
-        <?php
+        printf(
+            $this->template,
+            'Discussion',
+            $args['Discussion']->DiscussionID,
+            $args['Discussion']->Score
+        );
+        echo '<div class="DiscussionContent">';
     }
 
     /**
@@ -205,14 +204,12 @@ class RatingPlugin extends Gdn_Plugin {
         if (!$this->enabled) {
             return;
         }
-        ?>
-        <div class="RatingContainer RatingDiscussion">
-            <a class="RatingUp" DiscussionID="<?= $args['Discussion']->DiscussionID ?>"><?= t('&#x25B2;') ?></a>
-            <span class="Rating" data-rating="<?= intval($args['Discussion']->Score) ?>"><?= intval($args['Discussion']->Score) ?></span>
-
-            <a class="RatingDown" DiscussionID="<?= $args['Discussion']->DiscussionID ?>"><?= t('&#x25BC;') ?></a>
-        </div>
-        <?php
+        printf(
+            $this->template,
+            'Discussion',
+            $args['Discussion']->DiscussionID,
+            $args['Discussion']->Score
+        );
     }
 
     /**
@@ -227,13 +224,12 @@ class RatingPlugin extends Gdn_Plugin {
         if (!$this->enabled) {
             return;
         }
-        ?>
-        <div class="RatingContainer RatingComment">
-            <a class="RatingUp" CommentID="<?= $args['Comment']->CommentID ?>"><?= t('&#x25B2;') ?></a>
-            <span class="Rating" data-rating="<?= intval($args['Comment']->Score) ?>"><?= intval($args['Comment']->Score) ?></span>
-            <a class="RatingDown" CommentID="<?= $args['Comment']->CommentID ?>"><?= t('&#x25BC;') ?></a>
-        </div>
-        <?php
+        printf(
+            $this->template,
+            'Comment',
+            $args['Comment']->CommentID,
+            $args['Comment']->Score
+        );
     }
 
     /**
