@@ -20,34 +20,22 @@ $PluginInfo['rating'] = [
 ];
 
 
-// TODO: change style
+// error_reporting(E_ALL);
+// ini_set("display_errors", 1);
+
+include(__DIR__.DS.'class.rj_plugin.php');
+
+
 // TODO: make links point to signin for guests
-class RatingPlugin extends Gdn_Plugin {
-    /** @var boolean Whether the plugin is enabled. */
-    protected $enabled = false;
-
-    protected $template = '';
-
+// Don't change sort order for all views!
+// Instead create new menu entry "Recent"|"Top"|...
+// Sort comments by rank is a admin config setting
+// Option to make "Top" the default page
+class RatingPlugin extends RJ_Plugin {
     public function __construct() {
-        parent::__construct();
-
-        // It will not work with table layout
-        if (c('Vanilla.Discussions.Layout') == 'table') {
-            $this->enabled = false;
-            return;
-        }
-
-        // Do the isEnabled() check only once.
-        $this->enabled = $this->isEnabled();
-
-        $this->template = '
-            <div class="RatingContainer Rating%1$s" data-posttype="%1$s" data-postid="%2$u">
-                <a class="RatingUp">'.t('&#x25B2;').'</a>
-                <span class="Rating" data-rating="%3$d">%3$d</span>
-                <a class="RatingDown">'.t('&#x25BC;').'</a>
-            </div>
-        ';
+        parent::__construct('rating');
     }
+
     /**
      * Init db changes.
      *
@@ -65,13 +53,7 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function structure(){
-        // Replace null with zero in Score
-        Gdn::structure()->table('Discussion')
-            ->column('Score', 'int(11)', 0, 'index')
-            ->set();
-        Gdn::structure()->table('Comment')
-            ->column('Score', 'int(11)', 0, 'index')
-            ->set();
+        $this->settings()->structure();
     }
 
     /**
@@ -82,54 +64,11 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function settingsController_rating_create($sender) {
-        $sender->permission('Garden.Settings.Manage');
-        $sender->setData('Title', t('Rating Settings'));
-        $sender->addSideMenu('dashboard/settings/plugins');
+        $this->settings()->index($sender);
+    }
 
-        $validation = new Gdn_Validation();
-        $configurationModel = new Gdn_ConfigurationModel($validation);
-        $configurationModel->setField(
-            [
-                'Vanilla.Discussions.SortDirection',
-                'Vanilla.Discussions.SortField',
-                'rating.Comments.SortField',
-                'rating.RatingStep',
-                'Plugins.rating.Enabled'
-            ]
-        );
-        $sender->Form = new Gdn_Form();
-        $sender->Form->setModel($configurationModel);
-        // Choices for sort directions.
-        $sender->setData(
-            'SortDirection',
-            ['desc' => 'Descending', 'asc' => 'Ascending']
-        );
-        // Choices for sort fields
-        $sender->setData(
-            'DiscussionSortField',
-            [
-                'Score' => 'Score',
-                'DateInserted' => 'Date Created',
-                'DateLastComment' => 'Date Last Active'
-            ]
-        );
-        $sender->setData(
-            'CommentSortField',
-            [
-                'Score' => 'Score',
-                'DateInserted' => 'Date Created'
-            ]
-        );
-        $sender->setData('YagaEnabled', Gdn::applicationManager()->isEnabled('Yaga'));
-
-        if ($sender->Form->authenticatedPostBack() === false) {
-            $sender->Form->setData($configurationModel->Data);
-        } else {
-            if ($sender->Form->save() !== false) {
-                $sender->informMessage(t('Your settings have been saved.'));
-            }
-        }
-        $sender->render($this->getView('settings.php'));
+    public function base_afterDiscussionFilters_handler($sender) {
+        $this->ui()->printDiscussionFilterEntry();
     }
 
     /**
@@ -143,9 +82,6 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_render_before($sender) {
-        if (!$this->enabled) {
-            return;
-        }
         // Include style & script.
         $sender->addCssFile('rating.css', 'plugins/rating');
         $sender->addJsFile('rating.js', 'plugins/rating');
@@ -153,10 +89,7 @@ class RatingPlugin extends Gdn_Plugin {
         // Check for adding permissions only once.
         if (
             Gdn::session()->checkPermission(
-                [
-                    'Plugins.Rating.Add',
-                    'Plugins.Rating.Manage'
-                ],
+                ['Plugins.Rating.Add', 'Plugins.Rating.Manage'],
                 false
             )
         ) {
@@ -178,11 +111,11 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_beforeDiscussionContent_handler($sender, $args) {
-        if (!$this->enabled || c('Vanilla.Discussions.Layout') == 'table') {
+        // Adding voting controls destroys table layout.
+        if ($sender->View == 'table') {
             return;
         }
-        printf(
-            $this->template,
+        $this->ui()->printRatingTemplate(
             'Discussion',
             $args['Discussion']->DiscussionID,
             $args['Discussion']->Score
@@ -198,11 +131,7 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_beforeDiscussionDisplay_handler($sender, $args) {
-        if (!$this->enabled) {
-            return;
-        }
-        printf(
-            $this->template,
+        $this->ui()->printRatingTemplate(
             'Discussion',
             $args['Discussion']->DiscussionID,
             $args['Discussion']->Score
@@ -218,11 +147,7 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function base_beforeCommentMeta_handler($sender, $args) {
-        if (!$this->enabled) {
-            return;
-        }
-        printf(
-            $this->template,
+        $this->ui()->printRatingTemplate(
             'Comment',
             $args['Comment']->CommentID,
             $args['Comment']->Score
@@ -243,71 +168,12 @@ class RatingPlugin extends Gdn_Plugin {
      * @return bool Whether Score has been updated.
      */
     public function pluginController_rating_create($sender, $args) {
-        if (!$this->enabled) {
-            return false;
-        }
-        $sender->permission(
-            [
-                'Plugins.Rating.Add', 'Plugins.Rating.Manage'
-            ],
-            false
-        );
-        $getParams = Gdn::request()->getRequestArguments('get');
-        // Check for valid TransientKey to prevent clickbaiting.
-        if (!Gdn::session()->validateTransientKey(val('tk', $getParams, false))) {
-            throw new InvalidArgumentException('TransientKey invalid.');
-        }
-        // Sanity check for post id.
-        $postID = intval(val('id', $getParams, 0));
-        if ($postID <= 0) {
-            throw new InvalidArgumentException('PostID invalid.');
-        }
-        // Get post type
-        if (val('type', $getParams, 'Discussion') == 'Comment') {
-            $postType = 'Comment';
-        } else {
-            $postType = 'Discussion';
-        }
-        $modelName = $postType.'Model';
-        $postModel = new $modelName();
+        $this->api()->rating(Gdn::session(), Gdn::request()->getRequestArguments('get'));
+    }
 
-        // Prevent users from voting on their own posts.
-        if (!Gdn::session()->checkPermission('Plugins.Rating.Manage')) {
-            $post = $postModel->getID($postID);
-            if ($post->InsertUserID == Gdn::session()->UserID) {
-                return false;
-            }
-        }
-
-        // Determine rating.
-        if (val('rate', $getParams, 'up') == 'down') {
-            $score = -1;
-        } else {
-            $score = 1;
-        }
-
-        $currentScore = $postModel->getUserScore(
-            $postID,
-            Gdn::session()->UserID
-        );
-
-        $newScore = $currentScore + $score;
-        if (
-            !Gdn::session()->checkPermission('Plugins.Rating.Manage') &&
-            ($newScore > 1 || $newScore < -1)
-        ) {
-            // Score cannot exceed -1/1 for normal users. No change is made.
-            return false;
-        }
-        // Echoes the new total score of the post.
-        echo $postModel->setUserScore(
-            $postID,
-            Gdn::session()->UserID,
-            $newScore
-        );
-
-        // Return the score to allow js to update the rating.
-        return true;
+    public function discussionsController_top_create($sender) {
+        $sender->title('Top Rated');
+        $sender->index(val(0, $sender->RequestArgs, ''));
     }
 
     /**
@@ -320,9 +186,6 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function commentModel_afterConstruct_handler($sender) {
-        if (!$this->enabled) {
-            return;
-        }
         if (c('Vanilla.Discussions.SortField', '') == 'Score') {
             $sender->orderBy(
                 c('rating.Comments.SortField', 'Score').
