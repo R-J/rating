@@ -2,9 +2,9 @@
 
 $PluginInfo['rating'] = [
     'Name' => 'Rating',
-    'Description' => 'Allows users to up- or down-vote discussions and comments. <div class="Warning">Don\'t use this plugin together with Yaga!</div>',
-    'Version' => '0.1',
-    'RequiredApplications' => ['Vanilla' => '2.2'],
+    'Description' => 'Allows users to up- or down-vote discussions and comments.',
+    'Version' => '0.2',
+    'RequiredApplications' => ['Vanilla' => '2.3'],
     'RequiredTheme' => false,
     'RequiredPlugins' => false,
     'SettingsUrl' => 'settings/rating',
@@ -19,23 +19,20 @@ $PluginInfo['rating'] = [
     'License' => 'MIT'
 ];
 
-
-// error_reporting(E_ALL);
-// ini_set("display_errors", 1);
-
-
-// TODO: make links point to signin for guests
-// Don't change sort order for all views!
-// Instead create new menu entry "Recent"|"Top"|...
-// Sort comments by rank is a admin config setting
-// Option to make "Top" the default page
+/**
+ * Allows users to rate discussions and comments.
+ *
+ * @todo Make links point to signin for guests
+ * @todo Option to make "Top" the default page
+ */
 class RatingPlugin extends Gdn_Plugin {
     /**
-     * Init db changes.
+     * Init db changes and set default comment sort.
      *
      * @return void.
      */
     public function setup() {
+        touchConfig(['rating.Comments.OrderBy' => 'Score desc']);
         $this->structure();
     }
 
@@ -57,7 +54,7 @@ class RatingPlugin extends Gdn_Plugin {
     }
 
     /**
-     * Allows enabling plugin and changing sort order.
+     * Allows changing sort order.
      *
      * @param SettingsController $sender Instance of the calling class.
      *
@@ -68,58 +65,75 @@ class RatingPlugin extends Gdn_Plugin {
         $sender->setData('Title', t('Rating Settings'));
         $sender->addSideMenu('dashboard/settings/plugins');
 
-        $validation = new Gdn_Validation();
-        $configurationModel = new Gdn_ConfigurationModel($validation);
-        $configurationModel->setField(
-            [
-                'Vanilla.Discussions.SortDirection',
-                'Vanilla.Discussions.SortField',
-                'rating.Comments.SortField',
-                'rating.RatingStep',
-                'Plugins.rating.Enabled'
-            ]
-        );
+        // Add form.
         $sender->Form = new Gdn_Form();
-        $sender->Form->setModel($configurationModel);
+
         // Choices for sort directions.
-        $sender->setData(
-            'SortDirection',
-            ['desc' => 'Descending', 'asc' => 'Ascending']
-        );
-        // Choices for sort fields
-        $sender->setData(
-            'DiscussionSortField',
-            [
-                'Score' => 'Score',
-                'DateInserted' => 'Date Created',
-                'DateLastComment' => 'Date Last Active'
-            ]
-        );
-        $sender->setData(
-            'CommentSortField',
-            [
-                'Score' => 'Score',
-                'DateInserted' => 'Date Created'
-            ]
-        );
-        $sender->setData('YagaEnabled', Gdn::applicationManager()->isEnabled('Yaga'));
+        $validSortDirections = ['desc' => 'Descending', 'asc' => 'Ascending'];
+        $sender->setData('SortDirection', $validSortDirections);
+        // Choices for sort field.
+        $validSortFields = ['Score' => 'Score', 'DateInserted' => 'Date Inserted'];
+        $sender->setData('SortField', $validSortFields);
 
         if ($sender->Form->authenticatedPostBack() === false) {
-            $sender->Form->setData($configurationModel->Data);
+            // If form is displayed "unposted", fill fields with config values.
+            $orderBy = explode(' ', c('rating.Comments.OrderBy'));
+            $sortField = val(0, $orderBy);
+            $sortDirection = val(1, $orderBy);
+            if (array_key_exists($sortField, $validSortFields)) {
+                $sender->Form->setValue('SortField', $sortField);
+            }
+            if (array_key_exists($sortDirection, $validSortDirections)) {
+                $sender->Form->setValue('SortDirection', $sortDirection);
+            }
         } else {
-            if ($sender->Form->save() !== false) {
-                $sender->informMessage(t('Your settings have been saved.'));
+            // After POST, validate input and built/save config string.
+            $sortField = $sender->Form->getFormValue('SortField');
+            $sortDirection = $sender->Form->getFormValue('SortDirection');
+            // Validate sort field.
+            if (!array_key_exists($sortField, $validSortFields)) {
+                $sender->Form->addError(
+                    'Comment Sort Field must be either "Score" or "DateInserted"',
+                    'SortField'
+                );
+            }
+            // Validate sort direction.
+            if (!array_key_exists($sortDirection, $validSortDirections)) {
+                $sender->Form->addError(
+                    'Sort Direction must be either "asc" or "desc"',
+                    'SortDirection'
+                );
+            }
+            // If there are no validation errors, save config setting.
+            if (!$sender->Form->errors()) {
+                saveToConfig('rating.Comments.OrderBy', $sortField.' '.$sortDirection);
+                $sender->informMessage(
+                    sprite('Check', 'InformSprite').t('Your settings have been saved.'),
+                    ['CssClass' => 'Dismissable AutoDismiss HasSprite']
+                );
             }
         }
-
+        // Show form.
         $sender->render($this->getView('settings.php'));
     }
 
+    /**
+     * Add link to "Top" discussions to discussion filter.
+     *
+     * @param GardenController $sender Instance of the sending class.
+     *
+     * @return void.
+     */
     public function base_afterDiscussionFilters_handler($sender) {
         $cssClass = 'Top';
-        if (strtolower(Gdn::controller()->ControllerName) == 'discussionscontroller' && strtolower(Gdn::controller()->RequestMethod) == 'top') {
+        // Change class if "Top" is current page.
+        if (
+            strtolower(Gdn::controller()->RequestMethod) == 'top' &&
+            strtolower(Gdn::controller()->ControllerName) == 'discussionscontroller'
+        ) {
             $cssClass .= ' Active';
         }
+        // Insert link.
         ?>
         <li class="<?= $cssClass ?>">
             <?= anchor(sprite('SpTop').t('Top'), '/discussions/top') ?>
@@ -128,7 +142,7 @@ class RatingPlugin extends Gdn_Plugin {
     }
 
     /**
-     * Optionally add CSS & JS files. Do plugins permission checks.
+     * Add CSS & JS files. Do plugins permission checks.
      *
      * Permission is checked once per controller here so that it doesn't need
      * to be done on every event fired.
@@ -142,7 +156,7 @@ class RatingPlugin extends Gdn_Plugin {
         $sender->addCssFile('rating.css', 'plugins/rating');
         $sender->addJsFile('rating.js', 'plugins/rating');
 
-        // Check for adding permissions only once.
+        // Check for adding permissions only once per page call.
         if (
             Gdn::session()->checkPermission(
                 ['Plugins.Rating.Add', 'Plugins.Rating.Manage'],
@@ -158,6 +172,15 @@ class RatingPlugin extends Gdn_Plugin {
         $sender->CssClass .= $cssClass;
     }
 
+    /**
+     * Helper method to print the rating snippet.
+     *
+     * @param string  $postType Either "Discussion" or "Comment".
+     * @param integer $postID   The DiscussionID/CommentID.
+     * @param integer $score    The current score of this post.
+     *
+     * @return void
+     */
     public function printRatingTemplate($postType, $postID, $score) {
         ?>
         <div class="RatingContainer Rating<?= $postType ?>" data-posttype="<?= $postType ?>" data-postid="<?= $postID ?>">
@@ -228,20 +251,30 @@ class RatingPlugin extends Gdn_Plugin {
      * id:   The DiscussionID or CommentID
      * rate: "up" (default) or "down"
      * "Plugins.Rating.Add" or "Plugins.Rating.Manage" permissions needed.
+     *
      * @param PluginController $sender Instance of the calling class.
-     * @param mixed            $args   Event arguments.
      *
      * @return bool Whether Score has been updated.
      */
-    public function pluginController_rating_create($sender, $args) {
-       // Check for valid TransientKey to prevent clickbaiting.
+    public function pluginController_rating_create($sender) {
+        // Store manage permission since it will be needed more often.
+        if (Gdn::session()->checkPermission()) {
+            $canManage = true;
+        } else {
+            // If has neither Add nor Manage rights, break.
+            if (!Gdn::session()->checkPermission('Plugins.Rating.Add')) {
+                throw permissionException('Plugins.Rating.Add');
+            }
+        }
+
+        // Check for valid TransientKey to prevent clickbaiting.
         if (!Gdn::session()->validateTransientKey(Gdn::request()->get('tk', false))) {
-            throw new InvalidArgumentException('TransientKey invalid.');
+            throw new Exception('Transient Key is invalid.');
         }
         // Sanity check for post id.
         $postID = intval(Gdn::request()->get('id', 0));
         if ($postID <= 0) {
-            throw new InvalidArgumentException('PostID invalid.');
+            throw new Exception('Post ID is invalid.');
         }
         // Get post type
         if (Gdn::request()->get('type', 'Discussion') == 'Comment') {
@@ -253,7 +286,7 @@ class RatingPlugin extends Gdn_Plugin {
         $postModel = new $modelName();
 
         // Prevent users from voting on their own posts.
-        if (!Gdn::session()->checkPermission('Plugins.Rating.Manage')) {
+        if (!$canManage) {
             $post = $postModel->getID($postID);
             if ($post->InsertUserID == Gdn::session()->UserID) {
                 return false;
@@ -273,45 +306,98 @@ class RatingPlugin extends Gdn_Plugin {
         );
 
         $newScore = $currentScore + $score;
-        if (
-            !Gdn::session()->checkPermission('Plugins.Rating.Manage') &&
-            ($newScore > 1 || $newScore < -1)
-        ) {
-            // Score cannot exceed -1/1 for normal users. No change is made.
+        // Ensure that users without manage permissions cannot give
+        // a score > 1 / < -1.
+        if (!$canManage && ($newScore > 1 || $newScore < -1)) {
             return false;
         }
-        // Echoes the new total score of the post.
+        // Echoes the new total score of the post so that it can be displayed.
         echo $postModel->setUserScore(
             $postID,
             Gdn::session()->UserID,
             $newScore
         );
 
-        // Return the score to allow js to update the rating.
+        // Return true since update was successful.
         return true;
     }
 
+    /**
+     * Add new discussion list sorted by column Score.
+     *
+     * This makes use of the discussion sort feature of Vanilla 2.3. For
+     * versions below it would have to be implemented n another way.
+     *
+     * @param DiscussionsController $sender Instance of the calling class.
+     *
+     * @return void.
+     */
     public function discussionsController_top_create($sender) {
-        $sender->title('Top Rated');
-        $sender->index(val(0, $sender->RequestArgs, ''));
+        // "score" sort is removed in index(), so we have to re-insert it
+        // before we can add it.
+        DiscussionModel::addSort(
+            'score',
+            'Top',
+            ['Score' => 'desc', 'DateInserted' => 'desc']
+        );
+        Gdn::request()->setRequestArguments('get', ['sort' => 'score']);
+
+        // Add info needed for displaying a discussions page.
+        $sender->title(t('Top Rated'));
+        $sender->setData('_PagerUrl', 'discussions/top/{Page}');
+        $sender->View = 'index';
+        $page = val(0, $sender->RequestArgs, '');
+        if ($page == 'feed.rss') {
+            $page = 'feed';
+        }
+        // Re-use the original discussions index view.
+        $sender->index($page);
+    }
+
+    /**
+     * Adapt some settings of index view.
+     *
+     * In order to re-use the discussions index view, we need to change
+     * a few settings a) after the index() method has been run and b) before
+     * the view is rendered.
+     *
+     * @param DiscussionsController $sender Instance of the calling class.
+     *
+     * @return void.
+     */
+    public function discussionsController_render_before($sender) {
+        if (strtolower(Gdn::controller()->RequestMethod) != 'top') {
+            return;
+        }
+        // Change canonical url.
+        $sender->canonicalUrl(
+            url(
+                ConcatSep('/', 'discussions', 'top', $sender->data('_Page')),
+                true
+            )
+        );
+        // Correct feed address.
+        if ($sender->Head) {
+            $sender->Head->addRss(
+                url('/discussions/top/feed.rss', true),
+                $sender->Head->title()
+            );
+        }
+        // Set the breadcrumbs
+        $sender->setData(
+            'Breadcrumbs',
+            [['Name' => t('Top Rated'), 'Url' => '/discussions/top']]
+        );
     }
 
     /**
      * Change comments sort order.
-     *
-     * There is no config setting for this, so that must be set dynamically.
      *
      * @param CommentModel $sender Instance of the calling class.
      *
      * @return void.
      */
     public function commentModel_afterConstruct_handler($sender) {
-        if (c('Vanilla.Discussions.SortField', '') == 'Score') {
-            $sender->orderBy(
-                c('rating.Comments.SortField', 'Score').
-                ' '.
-                c('Vanilla.Discussions.SortDirection', 'desc')
-            );
-        }
+        $sender->orderBy(c('rating.Comments.OrderBy', 'Score desc'));
     }
 }
