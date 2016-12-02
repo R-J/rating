@@ -12,6 +12,10 @@
         <?= $this->Form->label('Sort Direction', 'SortDirection') ?>
         <?= $this->Form->radioList('SortDirection', $this->data('SortDirection')) ?>
     </li>
+    <li>
+        <?= $this->Form->label('Set "Top" as Homepage', 'TopHome') ?>
+        <?= $this->Form->checkBox('TopHome') ?>
+    </li>
 </ul>
 <?= $this->Form->close('Save'); ?>
 </div>

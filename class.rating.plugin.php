@@ -2,8 +2,8 @@
 
 $PluginInfo['rating'] = [
     'Name' => 'Rating',
-    'Description' => 'Allows users to up- or down-vote discussions and comments.',
-    'Version' => '0.2',
+    'Description' => 'Allows users to up- or down-vote discussions and comments.<br>Icon kindly donated by <a href="http://www.vanillaskins.com/">VanillaSkins</a>',
+    'Version' => '0.3',
     'RequiredApplications' => ['Vanilla' => '2.3'],
     'RequiredTheme' => false,
     'RequiredPlugins' => false,
@@ -23,7 +23,6 @@ $PluginInfo['rating'] = [
  * Allows users to rate discussions and comments.
  *
  * @todo Make links point to signin for guests
- * @todo Option to make "Top" the default page
  */
 class RatingPlugin extends Gdn_Plugin {
     /**
@@ -65,6 +64,16 @@ class RatingPlugin extends Gdn_Plugin {
         $sender->setData('Title', t('Rating Settings'));
         $sender->addSideMenu('dashboard/settings/plugins');
 
+        // Save homepage in order to be able to restore it later.
+        // Only if it is not already discussions/top
+        $defaultController = Gdn::router()->getRoute('DefaultController');
+        if ($defaultController['Destination'] != 'discussions/top') {
+            saveToConfig(
+                'rating.OriginalDefaultController',
+                $defaultController['Destination']
+            );
+        }
+
         // Add form.
         $sender->Form = new Gdn_Form();
 
@@ -85,6 +94,9 @@ class RatingPlugin extends Gdn_Plugin {
             }
             if (array_key_exists($sortDirection, $validSortDirections)) {
                 $sender->Form->setValue('SortDirection', $sortDirection);
+            }
+            if (Gdn::router()->getRoute('DefaultController')['Destination'] == 'discussions/top') {
+                $sender->Form->setValue('TopHome', true);
             }
         } else {
             // After POST, validate input and built/save config string.
@@ -107,6 +119,21 @@ class RatingPlugin extends Gdn_Plugin {
             // If there are no validation errors, save config setting.
             if (!$sender->Form->errors()) {
                 saveToConfig('rating.Comments.OrderBy', $sortField.' '.$sortDirection);
+                if ($sender->Form->getFormValue('TopHome', false) == true) {
+                    // Set "Top" as homepage.
+                    Gdn::router()->setRoute(
+                        'DefaultController',
+                        'discussions/top',
+                        'Internal'
+                    );
+                } else {
+                    // Restore homepage.
+                    Gdn::router()->setRoute(
+                        'DefaultController',
+                        c('rating.OriginalDefaultController', 'discussions'),
+                        'Internal'
+                    );
+                }
                 $sender->informMessage(
                     sprite('Check', 'InformSprite').t('Your settings have been saved.'),
                     ['CssClass' => 'Dismissable AutoDismiss HasSprite']
