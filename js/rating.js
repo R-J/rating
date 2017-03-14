@@ -37,7 +37,9 @@ $(document).ready(function() {
     )
     .done(function(data) {
       // Update with current local count.
-      elScore.text(parseInt(data));
+      if (data) {
+        elScore.text(parseInt(data));
+      }
     })
     .fail(function(data) {
       // Restore old value.

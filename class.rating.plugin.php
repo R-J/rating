@@ -343,7 +343,7 @@ class RatingPlugin extends Gdn_Plugin {
      */
     public function pluginController_rating_create($sender) {
         // Store manage permission since it will be needed more often.
-        if (Gdn::session()->checkPermission()) {
+        if (Gdn::session()->checkPermission('Plugins.Rating.Manage')) {
             $canManage = true;
         } else {
             // If has neither Add nor Manage rights, break.
