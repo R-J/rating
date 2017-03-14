@@ -25,7 +25,44 @@ $PluginInfo['rating'] = [
  * @todo Make links point to signin for guests
  */
 class RatingPlugin extends Gdn_Plugin {
+    /** @var string Currently selected filter. */
     protected $filter = '';
+
+    /** @var array Period filters */
+    protected $periodFilters = [];
+
+    /**
+     * Init the period filters
+     *
+     * @return void.
+     */
+    public function __construct() {
+        $this->periodFilters = [
+            'today' => [
+                'Name' => t('Today'),
+                'Filter' => ['d.DateInserted' => Gdn_Format::toDateTime()]
+            ],
+            'week' => [
+                'Name' => t('Last Week'),
+                'Filter' => [
+                    'd.DateInserted >=' => Gdn_Format::toDateTime(time() - 604800),
+                    'd.DateInserted <=' => Gdn_Format::toDateTime(),
+                ]
+            ],
+            'month' => [
+                'Name' => t('Last Month'),
+                'Filter' => [
+                    'd.DateInserted >=' => Gdn_Format::toDateTime(time() - 2592000),
+                    'd.DateInserted <=' => Gdn_Format::toDateTime(),
+                ]
+            ],
+            'ever' => [
+                'Name' => t('All Time'),
+                'Filter' => []
+            ]
+        ];
+    }
+
 
     /**
      * Init db changes and set default comment sort.
@@ -86,13 +123,12 @@ class RatingPlugin extends Gdn_Plugin {
         $validSortFields = ['Score' => 'Score', 'DateInserted' => 'Date Inserted'];
         $sender->setData('SortField', $validSortFields);
         // Valid period settings
-        $validPeriods = [
-            'today' => t('Today'),
-            'week' => t('Last Week'),
-            'month' => t('Last Month'),
-            'ever' => t('All time')
-        ];
-
+        $validPeriods = array_map(
+            function ($filter) {
+                return $filter['Name'];
+            },
+            $this->periodFilters
+        );
         $sender->setData('Period', $validPeriods);
 
         if ($sender->Form->authenticatedPostBack() === false) {
@@ -132,7 +168,7 @@ class RatingPlugin extends Gdn_Plugin {
             $period = $sender->Form->getFormValue('Period');
             if (!array_key_exists($period, $validPeriods)) {
                 $sender->Form->addError(
-                    'Period must be one of today, week, month, ever.',
+                    'Period must be one of '.implode(', ', array_keys($validPeriods)).'.',
                     'Period'
                 );
             }
@@ -182,11 +218,12 @@ class RatingPlugin extends Gdn_Plugin {
             $cssClass .= ' Active';
         }
         // Insert link.
-        ?>
-        <li class="<?= $cssClass ?>">
-            <?= anchor(sprite('SpTop').t('Top Rated'), '/discussions/top/'.c('rating.Period.Default', 'ever')) ?>
-        </li>
-        <?php
+        echo '<li class="', $cssClass, '">';
+        echo anchor(
+            sprite('SpTop').t('Top Rated'),
+            '/discussions/top/'.c('rating.Period.Default', 'ever')
+        );
+        echo '</li>';
     }
 
     /**
@@ -389,40 +426,15 @@ class RatingPlugin extends Gdn_Plugin {
             'Top',
             ['Score' => 'desc', 'd.DateInserted' => 'desc']
         );
+        foreach ($this->periodFilters as $key => $value) {
+            DiscussionModel::addFilter(
+                $key,
+                $value['Name'],
+                $value['Filter'],
+                'Rating'
+            );
+        }
 
-        // Add various filters.
-        DiscussionModel::addFilter(
-            'today',
-            'Today',
-            ['d.DateInserted' => Gdn_Format::toDateTime()],
-            'Rating'
-        );
-        // 7 * 24 * 60 * 60 = 604800
-        DiscussionModel::addFilter(
-            'week',
-            'Last Week',
-            [
-                'd.DateInserted >=' => Gdn_Format::toDateTime(time() - 604800),
-                'd.DateInserted <=' => Gdn_Format::toDateTime(),
-            ],
-            'Rating'
-        );
-        // 30 * 24 * 60 * 60 = 604800
-        DiscussionModel::addFilter(
-            'month',
-            'Last Month',
-            [
-                'd.DateInserted >=' => Gdn_Format::toDateTime(time() - 2592000),
-                'd.DateInserted <=' => Gdn_Format::toDateTime(),
-            ],
-            'Rating'
-        );
-        DiscussionModel::addFilter(
-            'ever',
-            'Ever!',
-            [],
-            'Rating'
-        );
         $this->filter = val(
             0,
             $sender->RequestArgs,
@@ -495,23 +507,26 @@ class RatingPlugin extends Gdn_Plugin {
         $sender->orderBy(c('rating.Comments.OrderBy', 'Score desc'));
     }
 
-    public function discussionsController_afterPageTitle_handler($sender, $args) {
+    /**
+     * Add navigation links for switching between period views.
+     *
+     * @param DiscussionsController $sender Instance of the calling class.
+     *
+     * @return void.
+     */
+    public function discussionsController_afterPageTitle_handler($sender) {
         if (strtolower($sender->RequestMethod) != 'top') {
             return;
         }
-        $class['today'] = '';
-        $class['week'] = '';
-        $class['month'] = '';
-        $class['ever'] = '';
-        $class[$this->filter] = ' class="Active"';
 
-        echo '
-            <ul class="RatingNav">
-                <li', $class['today'], '>', anchor(t('Today'), '/discussions/top/today'), '</li>
-                <li', $class['week'], '>', anchor(t('Last Week'), '/discussions/top/week'), '</li>
-                <li', $class['month'], '>', anchor(t('Last Month'), '/discussions/top/month'), '</li>
-                <li', $class['ever'], '>', anchor(t('Ever!'), '/discussions/top/ever'), '</li>
-            </ul>
-        ';
+        echo '<ul class="RatingNav">';
+        foreach ($this->periodFilters as $key => $value) {
+            echo '<li';
+            if ($this->filter == $key) {
+                echo ' class="Active"';
+            }
+            echo '>', anchor($value['Name'], "/discussions/top/$key"), '</li>';
+        }
+        echo '</ul>';
     }
 }
