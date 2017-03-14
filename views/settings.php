@@ -16,6 +16,10 @@
         <?= $this->Form->label('Set "Top" as Homepage', 'TopHome') ?>
         <?= $this->Form->checkBox('TopHome') ?>
     </li>
+    <li>
+        <?= $this->Form->label('Default time period to show') ?>
+        <?= $this->Form->dropDown('Period', $this->data('Period')) ?>
+    </li>
 </ul>
 <?= $this->Form->close('Save'); ?>
 </div>

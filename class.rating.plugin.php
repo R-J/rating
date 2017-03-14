@@ -3,8 +3,8 @@
 $PluginInfo['rating'] = [
     'Name' => 'Rating',
     'Description' => 'Allows users to up- or down-vote discussions and comments.<br>Icon kindly donated by <a href="http://www.vanillaskins.com/">VanillaSkins</a>',
-    'Version' => '0.3',
-    'RequiredApplications' => ['Vanilla' => '2.3'],
+    'Version' => '0.4',
+    'RequiredApplications' => ['Vanilla >=' => '2.3'],
     'RequiredTheme' => false,
     'RequiredPlugins' => false,
     'SettingsUrl' => 'settings/rating',
@@ -25,6 +25,8 @@ $PluginInfo['rating'] = [
  * @todo Make links point to signin for guests
  */
 class RatingPlugin extends Gdn_Plugin {
+    protected $filter = '';
+
     /**
      * Init db changes and set default comment sort.
      *
@@ -83,6 +85,15 @@ class RatingPlugin extends Gdn_Plugin {
         // Choices for sort field.
         $validSortFields = ['Score' => 'Score', 'DateInserted' => 'Date Inserted'];
         $sender->setData('SortField', $validSortFields);
+        // Valid period settings
+        $validPeriods = [
+            'today' => t('Today'),
+            'week' => t('Last Week'),
+            'month' => t('Last Month'),
+            'ever' => t('All time')
+        ];
+
+        $sender->setData('Period', $validPeriods);
 
         if ($sender->Form->authenticatedPostBack() === false) {
             // If form is displayed "unposted", fill fields with config values.
@@ -98,6 +109,7 @@ class RatingPlugin extends Gdn_Plugin {
             if (Gdn::router()->getRoute('DefaultController')['Destination'] == 'discussions/top') {
                 $sender->Form->setValue('TopHome', true);
             }
+            $sender->Form->setValue('Period', c('rating.Period.Default', 'ever'));
         } else {
             // After POST, validate input and built/save config string.
             $sortField = $sender->Form->getFormValue('SortField');
@@ -116,9 +128,18 @@ class RatingPlugin extends Gdn_Plugin {
                     'SortDirection'
                 );
             }
+            // Validate period.
+            $period = $sender->Form->getFormValue('Period');
+            if (!array_key_exists($period, $validPeriods)) {
+                $sender->Form->addError(
+                    'Period must be one of today, week, month, ever.',
+                    'Period'
+                );
+            }
             // If there are no validation errors, save config setting.
             if (!$sender->Form->errors()) {
                 saveToConfig('rating.Comments.OrderBy', $sortField.' '.$sortDirection);
+                saveToConfig('rating.Period.Default', $period);
                 if ($sender->Form->getFormValue('TopHome', false) == true) {
                     // Set "Top" as homepage.
                     Gdn::router()->setRoute(
@@ -163,7 +184,7 @@ class RatingPlugin extends Gdn_Plugin {
         // Insert link.
         ?>
         <li class="<?= $cssClass ?>">
-            <?= anchor(sprite('SpTop').t('Top'), '/discussions/top') ?>
+            <?= anchor(sprite('SpTop').t('Top Rated'), '/discussions/top/'.c('rating.Period.Default', 'ever')) ?>
         </li>
         <?php
     }
@@ -362,18 +383,64 @@ class RatingPlugin extends Gdn_Plugin {
     public function discussionsController_top_create($sender) {
         // "score" sort is removed in index(), so we have to re-insert it
         // before we can add it.
+        $discussionModel = new DiscussionModel();
         DiscussionModel::addSort(
             'score',
             'Top',
-            ['Score' => 'desc', 'DateInserted' => 'desc']
+            ['Score' => 'desc', 'd.DateInserted' => 'desc']
         );
-        Gdn::request()->setRequestArguments('get', ['sort' => 'score']);
+
+        // Add various filters.
+        DiscussionModel::addFilter(
+            'today',
+            'Today',
+            ['d.DateInserted' => Gdn_Format::toDateTime()],
+            'Rating'
+        );
+        // 7 * 24 * 60 * 60 = 604800
+        DiscussionModel::addFilter(
+            'week',
+            'Last Week',
+            [
+                'd.DateInserted >=' => Gdn_Format::toDateTime(time() - 604800),
+                'd.DateInserted <=' => Gdn_Format::toDateTime(),
+            ],
+            'Rating'
+        );
+        // 30 * 24 * 60 * 60 = 604800
+        DiscussionModel::addFilter(
+            'month',
+            'Last Month',
+            [
+                'd.DateInserted >=' => Gdn_Format::toDateTime(time() - 2592000),
+                'd.DateInserted <=' => Gdn_Format::toDateTime(),
+            ],
+            'Rating'
+        );
+        DiscussionModel::addFilter(
+            'ever',
+            'Ever!',
+            [],
+            'Rating'
+        );
+        $this->filter = val(
+            0,
+            $sender->RequestArgs,
+            c('rating.Period.Default', 'ever')
+        );
+        Gdn::request()->setRequestArguments(
+            'get',
+            [
+                'sort' => 'score',
+                'filter' => $this->filter
+            ]
+        );
 
         // Add info needed for displaying a discussions page.
         $sender->title(t('Top Rated'));
-        $sender->setData('_PagerUrl', 'discussions/top/{Page}');
+        $sender->setData('_PagerUrl', 'discussions/top/'.$this->filter.'/{Page}');
         $sender->View = 'index';
-        $page = val(0, $sender->RequestArgs, '');
+        $page = val(1, $sender->RequestArgs, '');
         if ($page == 'feed.rss') {
             $page = 'feed';
         }
@@ -393,7 +460,7 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function discussionsController_render_before($sender) {
-        if (strtolower(Gdn::controller()->RequestMethod) != 'top') {
+        if (strtolower($sender->RequestMethod) != 'top') {
             return;
         }
         // Change canonical url.
@@ -426,5 +493,25 @@ class RatingPlugin extends Gdn_Plugin {
      */
     public function commentModel_afterConstruct_handler($sender) {
         $sender->orderBy(c('rating.Comments.OrderBy', 'Score desc'));
+    }
+
+    public function discussionsController_afterPageTitle_handler($sender, $args) {
+        if (strtolower($sender->RequestMethod) != 'top') {
+            return;
+        }
+        $class['today'] = '';
+        $class['week'] = '';
+        $class['month'] = '';
+        $class['ever'] = '';
+        $class[$this->filter] = ' class="Active"';
+
+        echo '
+            <ul class="RatingNav">
+                <li', $class['today'], '>', anchor(t('Today'), '/discussions/top/today'), '</li>
+                <li', $class['week'], '>', anchor(t('Last Week'), '/discussions/top/week'), '</li>
+                <li', $class['month'], '>', anchor(t('Last Month'), '/discussions/top/month'), '</li>
+                <li', $class['ever'], '>', anchor(t('Ever!'), '/discussions/top/ever'), '</li>
+            </ul>
+        ';
     }
 }

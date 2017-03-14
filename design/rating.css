@@ -50,7 +50,20 @@
     max-width: 669px;
 }
 
-
 .Comment .Item-BodyWrap {
     padding-left: 2.5em;
+}
+
+.RatingNav,
+.RatingNav li {
+    display: inline;
+    white-space: nowrap;
+}
+
+.RatingNav li {
+    margin-right: 10px;
+}
+
+.RatingNav .Active {
+    font-weight: bold;
 }
