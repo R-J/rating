@@ -40,7 +40,9 @@ class RatingPlugin extends Gdn_Plugin {
         $this->periodFilters = [
             'today' => [
                 'Name' => t('Today'),
-                'Filter' => ['d.DateInserted' => Gdn_Format::toDateTime()]
+                'Filter' => [
+                    'd.DateInserted >=' => Gdn_Format::toDateTime(time() - 86400)
+                ]
             ],
             'week' => [
                 'Name' => t('Last Week'),
