@@ -3,13 +3,13 @@
 $PluginInfo['rating'] = [
     'Name' => 'Rating',
     'Description' => 'Allows users to up- or down-vote discussions and comments.<br>Icon kindly donated by <a href="http://www.vanillaskins.com/">VanillaSkins</a>',
-    'Version' => '0.4',
-    'RequiredApplications' => ['Vanilla >=' => '2.3'],
+    'Version' => '0.5',
+    'RequiredApplications' => ['Vanilla' => '>=2.3'],
     'RequiredTheme' => false,
     'RequiredPlugins' => false,
     'SettingsUrl' => 'settings/rating',
     'SettingsPermission' => 'Garden.Settings.Manage',
-    'HasLocale' => false,
+    'HasLocale' => true,
     'RegisterPermissions' => [
         'Plugins.Rating.Add',
         'Plugins.Rating.Manage'
