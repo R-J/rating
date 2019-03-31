@@ -1,0 +1,25 @@
+{
+    "type": "addon",
+    "key": "rating",
+    "name": "Rating",
+    "description": "Allows users to up- or down-vote discussions and comments.<br>Icon kindly donated by <a href=\"http://www.vanillaskins.com\">VanillaSkins</a>",
+    "settingsUrl": "settings/rating",
+    "registerPermissions": {
+        "0": "Plugins.Rating.Add",
+        "Plugins.Rating.Manage": "Garden.Settings.Manage"
+    },
+    "license": "MIT",
+    "version": "0.6.0",
+    "pluginUrl": "https:\/\/github.com\/r-j\/rating",
+    "authors": [
+        {
+            "name": "Robin Jurinka",
+            "homepage": "https:\/\/open.vanillaforums.com\/profile\/r_j"
+        }
+    ],
+    "hasLocale": true,
+    "mobileFriendly": true,
+    "require": {
+        "vanilla": ">=2.8"
+    }
+}

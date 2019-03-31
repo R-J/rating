@@ -1,24 +1,5 @@
 <?php
 
-$PluginInfo['rating'] = [
-    'Name' => 'Rating',
-    'Description' => 'Allows users to up- or down-vote discussions and comments.<br>Icon kindly donated by <a href="http://www.vanillaskins.com/">VanillaSkins</a>',
-    'Version' => '0.5',
-    'RequiredApplications' => ['Vanilla' => '>=2.3'],
-    'RequiredTheme' => false,
-    'RequiredPlugins' => false,
-    'SettingsUrl' => 'settings/rating',
-    'SettingsPermission' => 'Garden.Settings.Manage',
-    'HasLocale' => true,
-    'RegisterPermissions' => [
-        'Plugins.Rating.Add',
-        'Plugins.Rating.Manage'
-    ],
-    'Author' => 'Robin Jurinka',
-    'AuthorUrl' => 'http://vanillaforums.org/profile/r_j',
-    'License' => 'MIT'
-];
-
 /**
  * Allows users to rate discussions and comments.
  *
@@ -72,7 +53,6 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function setup() {
-        touchConfig(['rating.Comments.OrderBy' => 'Score desc']);
         $this->structure();
     }
 
@@ -83,12 +63,15 @@ class RatingPlugin extends Gdn_Plugin {
      *
      * @return void.
      */
-    public function structure(){
+    public function structure() {
+        Gdn::config()->touch(['rating.Comments.OrderBy' => 'Score desc']);
         // Replace null with zero in Score
-        Gdn::structure()->table('Discussion')
+        Gdn::structure()
+            ->table('Discussion')
             ->column('Score', 'int(11)', 0, 'index')
             ->set();
-        Gdn::structure()->table('Comment')
+        Gdn::structure()
+            ->table('Comment')
             ->column('Score', 'int(11)', 0, 'index')
             ->set();
     }
@@ -102,28 +85,28 @@ class RatingPlugin extends Gdn_Plugin {
      */
     public function settingsController_rating_create($sender) {
         $sender->permission('Garden.Settings.Manage');
+        $sender->setHighlightRoute('dashboard/settings/plugins');
+
         $sender->setData('Title', t('Rating Settings'));
-        $sender->addSideMenu('dashboard/settings/plugins');
+        $sender->setData(
+            'Description',
+            t('This plugin allows users to rate discussions and comments and empowers the admin to sort posts based on the rating.')
+        );
 
         // Save homepage in order to be able to restore it later.
         // Only if it is not already discussions/top
         $defaultController = Gdn::router()->getRoute('DefaultController');
         if ($defaultController['Destination'] != 'discussions/top') {
-            saveToConfig(
+            Gdn::config()->saveToConfig(
                 'rating.OriginalDefaultController',
                 $defaultController['Destination']
             );
         }
 
-        // Add form.
-        $sender->Form = new Gdn_Form();
-
         // Choices for sort directions.
         $validSortDirections = ['desc' => 'Descending', 'asc' => 'Ascending'];
-        $sender->setData('SortDirection', $validSortDirections);
         // Choices for sort field.
         $validSortFields = ['Score' => 'Score', 'DateInserted' => 'Date Inserted'];
-        $sender->setData('SortField', $validSortFields);
         // Valid period settings
         $validPeriods = array_map(
             function ($filter) {
@@ -131,13 +114,11 @@ class RatingPlugin extends Gdn_Plugin {
             },
             $this->periodFilters
         );
-        $sender->setData('Period', $validPeriods);
-
         if ($sender->Form->authenticatedPostBack() === false) {
             // If form is displayed "unposted", fill fields with config values.
-            $orderBy = explode(' ', c('rating.Comments.OrderBy'));
-            $sortField = val(0, $orderBy);
-            $sortDirection = val(1, $orderBy);
+            $orderBy = explode(' ', Gdn::config('rating.Comments.OrderBy'));
+            $sortField = $orderBy[0] ?? false;
+            $sortDirection = $orderBy[1] ?? false;
             if (array_key_exists($sortField, $validSortFields)) {
                 $sender->Form->setValue('SortField', $sortField);
             }
@@ -147,7 +128,7 @@ class RatingPlugin extends Gdn_Plugin {
             if (Gdn::router()->getRoute('DefaultController')['Destination'] == 'discussions/top') {
                 $sender->Form->setValue('TopHome', true);
             }
-            $sender->Form->setValue('Period', c('rating.Period.Default', 'ever'));
+            $sender->Form->setValue('Period', Gdn::config('rating.Period.Default', 'ever'));
         } else {
             // After POST, validate input and built/save config string.
             $sortField = $sender->Form->getFormValue('SortField');
@@ -176,8 +157,8 @@ class RatingPlugin extends Gdn_Plugin {
             }
             // If there are no validation errors, save config setting.
             if (!$sender->Form->errors()) {
-                saveToConfig('rating.Comments.OrderBy', $sortField.' '.$sortDirection);
-                saveToConfig('rating.Period.Default', $period);
+                Gdn::config()->saveToConfig('rating.Comments.OrderBy', $sortField.' '.$sortDirection);
+                Gdn::config()->saveToConfig('rating.Period.Default', $period);
                 if ($sender->Form->getFormValue('TopHome', false) == true) {
                     // Set "Top" as homepage.
                     Gdn::router()->setRoute(
@@ -189,7 +170,7 @@ class RatingPlugin extends Gdn_Plugin {
                     // Restore homepage.
                     Gdn::router()->setRoute(
                         'DefaultController',
-                        c('rating.OriginalDefaultController', 'discussions'),
+                        Gdn::config('rating.OriginalDefaultController', 'discussions'),
                         'Internal'
                     );
                 }
@@ -199,8 +180,31 @@ class RatingPlugin extends Gdn_Plugin {
                 );
             }
         }
-        // Show form.
-        $sender->render($this->getView('settings.php'));
+
+        $configurationModule = new ConfigurationModule($sender);
+        $configurationModule->initialize([
+            'SortField' => [
+                'LabelCode' => 'Comment Sort Field',
+                'Control' => 'radiolist',
+                'Items' => $validSortFields
+            ],
+            'SortDirection' => [
+                'LabelCode' => 'Sort Direction',
+                'Control' => 'radiolist',
+                'Items' => $validSortDirections
+            ],
+            'TopHome' => [
+                'LabelCode' => 'Set "Top" as Homepage',
+                'Control' => 'checkbox',
+                'default' => true
+            ],
+            'Period' => [
+                'LabelCode' => 'Default time period to show',
+                'Control' => 'dropdown',
+                'Items' => $validPeriods
+            ]
+        ]);
+        $configurationModule->renderAll();
     }
 
     /**
@@ -223,7 +227,7 @@ class RatingPlugin extends Gdn_Plugin {
         echo '<li class="', $cssClass, '">';
         echo anchor(
             sprite('SpTop').t('Top Rated'),
-            '/discussions/top/'.c('rating.Period.Default', 'ever')
+            '/discussions/top/'.Gdn::config('rating.Period.Default', 'ever')
         );
         echo '</li>';
     }
@@ -262,9 +266,9 @@ class RatingPlugin extends Gdn_Plugin {
     /**
      * Helper method to print the rating snippet.
      *
-     * @param string  $postType Either "Discussion" or "Comment".
-     * @param integer $postID   The DiscussionID/CommentID.
-     * @param integer $score    The current score of this post.
+     * @param string $postType Either "Discussion" or "Comment".
+     * @param integer $postID The DiscussionID/CommentID.
+     * @param integer $score The current score of this post.
      *
      * @return void
      */
@@ -282,7 +286,7 @@ class RatingPlugin extends Gdn_Plugin {
      * Insert rating markup into discussions lists.
      *
      * @param GardenController $sender Instance of the calling class.
-     * @param mixed            $args   Event arguments.
+     * @param mixed $args Event arguments.
      *
      * @return void.
      */
@@ -302,7 +306,7 @@ class RatingPlugin extends Gdn_Plugin {
      * Insert rating markup into discussion.
      *
      * @param GardenController $sender Instance of the calling class.
-     * @param mixed            $args   Event arguments.
+     * @param mixed $args Event arguments.
      *
      * @return void.
      */
@@ -318,7 +322,7 @@ class RatingPlugin extends Gdn_Plugin {
      * Insert rating markup into comment.
      *
      * @param GardenController $sender Instance of the calling class.
-     * @param mixed            $args   Event arguments.
+     * @param mixed $args Event arguments.
      *
      * @return void.
      */
@@ -437,11 +441,7 @@ class RatingPlugin extends Gdn_Plugin {
             );
         }
 
-        $this->filter = val(
-            0,
-            $sender->RequestArgs,
-            c('rating.Period.Default', 'ever')
-        );
+        $this->filter = $sender->RequestArgs[0] ?? Gdn::config('rating.Period.Default', 'ever');
         Gdn::request()->setRequestArguments(
             'get',
             [
@@ -454,7 +454,7 @@ class RatingPlugin extends Gdn_Plugin {
         $sender->title(t('Top Rated'));
         $sender->setData('_PagerUrl', 'discussions/top/'.$this->filter.'/{Page}');
         $sender->View = 'index';
-        $page = val(1, $sender->RequestArgs, '');
+        $page = $sender->RequestArgs[1] ?? '';
         if ($page == 'feed.rss') {
             $page = 'feed';
         }
@@ -506,7 +506,7 @@ class RatingPlugin extends Gdn_Plugin {
      * @return void.
      */
     public function commentModel_afterConstruct_handler($sender) {
-        $sender->orderBy(c('rating.Comments.OrderBy', 'Score desc'));
+        $sender->orderBy(Gdn::config('rating.Comments.OrderBy', 'Score desc'));
     }
 
     /**
