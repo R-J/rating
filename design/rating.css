@@ -29,9 +29,15 @@
     display: inline-block;
     line-height: 1em;
     text-align: center;
-    width: 1.5em;
+    width: 3em;
     vertical-align: top;
 }
+
+body.Vanilla.Discussions .Discussion.ItemContent,
+.DataList.Discussions .ItemDiscussion-withPhoto.ItemDiscussion-withPhoto .Discussion.ItemContent {
+  padding-left: 0px;
+}
+
 .RatingDiscussion {
     padding: 8px;
 }
